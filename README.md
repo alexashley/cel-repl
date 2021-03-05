@@ -32,9 +32,12 @@ Feature progress:
     - [ ] store previous parsed programs
     - [ ] configurable limit
     - [ ] up/down arrows to navigate
-    - [ ] print history index in prompt
+    - [x] print history index in prompt
+- [ ] expose REPL commands to cel instead of handling externally
 - [ ] load proto files and expose them to cel
 - [ ] load data from files -- eval with protos
 - [ ] load config from a file/flags/environment
 - [ ] navigation shortcuts (ctrl-a/ctrl-e)
+- [ ] clear screen
+- [ ] restart/reload sess
 - [ ] autocomplete

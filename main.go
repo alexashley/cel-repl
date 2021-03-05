@@ -77,8 +77,6 @@ func (r *repl) handleCommand(src string) bool {
 			fmt.Println("No history to inspect")
 			return true
 		}
-		fmt.Println(len(r.history) - 1)
-		fmt.Println(r.history)
 		previous := r.history[len(r.history) - 2] // -2 because the `inspect` command is already in history
 		ast, issues := r.env.Parse(previous)
 		if checkIssues(issues) {
@@ -139,13 +137,15 @@ func (r *repl) loop() {
 			continue
 		}
 
+
+
 		r.prompt()
 		fmt.Printf("%v\n", result.Value())
 	}
 }
 
 func (r *repl) prompt() {
-	fmt.Printf(r.config.prompt)
+	fmt.Printf(fmt.Sprintf("(%d)%s", len(r.history) + 1, r.config.prompt))
 }
 
 func newline() {
