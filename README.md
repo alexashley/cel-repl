@@ -33,6 +33,8 @@ Feature progress:
     - [ ] configurable limit
     - [ ] up/down arrows to navigate
     - [ ] print history index in prompt
-- [ ] load proto files and expose them to cel (probably only feasible if check is disabled)
-- [ ] load config from a file or flags
-- [ ] navigation shortcuts (ctrl-a/ctrl-e) for front
+- [ ] load proto files and expose them to cel
+- [ ] load data from files -- eval with protos
+- [ ] load config from a file/flags/environment
+- [ ] navigation shortcuts (ctrl-a/ctrl-e)
+- [ ] autocomplete
