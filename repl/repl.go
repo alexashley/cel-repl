@@ -1,10 +1,10 @@
-package main
+package repl
 
 import (
 	"bufio"
-	_ "embed"
-	"encoding/json"
 	"fmt"
+	"github.com/alexashley/cel-repl/repl/format"
+	"github.com/alexashley/cel-repl/repl/history"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker/decls"
 	"github.com/google/cel-go/common/types"
@@ -17,11 +17,6 @@ import (
 )
 
 const (
-	goInspectFormat      = "go"
-	jsonInspectFormat    = "json"
-	prettyInspectFormat  = "pretty"
-	defaultInspectFormat = goInspectFormat
-
 	quitFunctionId = "quit"
 
 	inspectFunctionId      = "inspect"
@@ -33,8 +28,6 @@ const (
 )
 
 var (
-	//go:embed version
-	replVersion     string
 	defaultPrompt   = "> "
 	globalFunctions = []*expr.Decl{
 		decls.NewFunction(quitFunctionId, decls.NewOverload(quitFunctionId, []*expr.Type{}, decls.Null)),
@@ -46,30 +39,34 @@ var (
 )
 
 type config struct {
-	history        int
+	historySize    int
 	check          bool
 	macros         bool
 	protoFilePaths []string
 	prompt         string
 }
 
-type repl struct {
-	config  *config
-	env     *cel.Env
-	history *historyRingBuffer
+type Repl struct {
+	config    *config
+	env       *cel.Env
+	formatter *format.Formatter
+	history   *history.EntryRingBuffer
+	version   string
 }
 
-func NewRepl() (*repl, error) {
+func NewRepl(version string) (*Repl, error) {
 	c := &config{
 		check:          true,
 		macros:         true,
 		prompt:         defaultPrompt,
-		history:        100,
+		historySize:    100,
 		protoFilePaths: []string{},
 	}
-	r := &repl{
-		config:  c,
-		history: newHistoryRingBuffer(c.history),
+	r := &Repl{
+		config:    c,
+		formatter: format.NewFormatter(),
+		history:   history.NewEntryRingBuffer(c.historySize),
+		version:   version,
 	}
 
 	opts := []cel.EnvOption{cel.Declarations(globalFunctions...)}
@@ -87,69 +84,59 @@ func NewRepl() (*repl, error) {
 	return r, nil
 }
 
-func (r *repl) quit(_ ...ref.Val) ref.Val {
+func (r *Repl) quit(_ ...ref.Val) ref.Val {
 	fmt.Println("So long, and thanks for all the fish!")
 	os.Exit(0)
 
 	return types.NullValue
 }
 
-func (r *repl) inspect(_ ...ref.Val) ref.Val {
-	entry := r.history.get(r.history.position() - 2)
+func (r *Repl) inspect(_ ...ref.Val) ref.Val {
+	entry := r.history.Get(r.history.Position() - 2)
 
-	return r.inspectEntry(entry, defaultInspectFormat)
+	return r.inspectEntry(entry, format.Default)
 }
 
-func (r *repl) inspectFmt(formatVal ref.Val) ref.Val {
-	format := formatVal.Value().(string)
-	entry := r.history.get(r.history.position() - 2)
+func (r *Repl) inspectFmt(formatVal ref.Val) ref.Val {
+	outputFormat := formatVal.Value().(string)
+	entry := r.history.Get(r.history.Position() - 2)
 
-	return r.inspectEntry(entry, format)
+	return r.inspectEntry(entry, outputFormat)
 }
 
-func (r *repl) inspectAt(nthVal ref.Val) ref.Val {
+func (r *Repl) inspectAt(nthVal ref.Val) ref.Val {
 	nth := nthVal.Value().(int64)
 
-	return r.inspectEntry(r.history.get(int(nth)-1), defaultInspectFormat)
+	return r.inspectEntry(r.history.Get(int(nth)-1), format.Default)
 }
 
-func (r *repl) inspectAtFmt(nthVal ref.Val, formatVal ref.Val) ref.Val {
+func (r *Repl) inspectAtFmt(nthVal ref.Val, formatVal ref.Val) ref.Val {
 	nth := nthVal.Value().(int64)
-	format := formatVal.Value().(string)
+	outputFormat := formatVal.Value().(string)
 
-	return r.inspectEntry(r.history.get(int(nth)-1), format)
+	return r.inspectEntry(r.history.Get(int(nth)-1), outputFormat)
 }
 
-func (r *repl) inspectEntry(entry *historyEntry, format string) ref.Val {
+func (r *Repl) inspectEntry(entry *history.Entry, format string) ref.Val {
 	if entry == nil {
 		return noHistory
 	}
 
-	if checkIssues(entry.issues) {
+	if checkIssues(entry.Issues) {
 		return types.String("that's not numberwang")
 	}
 
-	formattedOutput := ""
-	switch format {
-	case jsonInspectFormat:
-		jsonBytes, _ := json.MarshalIndent(entry.ast.Expr(), "", "  ")
-		formattedOutput = string(jsonBytes)
-	case goInspectFormat:
-		formattedOutput = entry.ast.Expr().String()
-	//case prettyInspectFormat:
-	default:
-		formattedOutput = fmt.Sprintf("unrecognized output format %s", format)
-	}
-
-	return types.String(formattedOutput)
+	return types.String(r.formatter.FormatWith(entry.Ast.Expr(), format))
 }
 
-func (r *repl) init() {
-	fmt.Printf("cel-repl %s started\n", strings.TrimSpace(replVersion))
+func (r *Repl) Init() *Repl {
+	fmt.Printf("cel-repl %s started\n", strings.TrimSpace(r.version))
 	fmt.Println("type quit() to exit")
+
+	return r
 }
 
-func (r *repl) loop() {
+func (r *Repl) Loop() {
 	evalOptions := map[string]interface{}{}
 	programOptions := cel.Functions(
 		&functions.Overload{
@@ -170,7 +157,7 @@ func (r *repl) loop() {
 		},
 		&functions.Overload{
 			Operator: inspectAtFmtFunctionId,
-			Binary: r.inspectAtFmt,
+			Binary:   r.inspectAtFmt,
 		},
 	)
 	stdin := bufio.NewReader(os.Stdin)
@@ -186,10 +173,10 @@ func (r *repl) loop() {
 		}
 
 		ast, issues := r.env.Compile(src)
-		r.history.insert(&historyEntry{
-			ast:    ast,
-			issues: issues,
-			raw:    src,
+		r.history.Insert(&history.Entry{
+			Ast:    ast,
+			Issues: issues,
+			Raw:    src,
 		})
 
 		if checkIssues(issues) {
@@ -224,15 +211,15 @@ func (r *repl) loop() {
 	}
 }
 
-func (r *repl) prompt() {
-	fmt.Printf(fmt.Sprintf("(%d)%s", r.history.position()+1, r.config.prompt))
+func (r *Repl) prompt() {
+	fmt.Printf(fmt.Sprintf("(%d)%s", r.history.Position()+1, r.config.prompt))
 }
 
 func newline() {
 	fmt.Println()
 }
 
-func (r *repl) getIssuesText(ast *cel.Ast, issues *cel.Issues) []string {
+func (r *Repl) getIssuesText(ast *cel.Ast, issues *cel.Issues) []string {
 	var issueText []string
 	for _, issue := range issues.Errors() {
 		if ast != nil && ast.Source() != nil {
@@ -245,7 +232,7 @@ func (r *repl) getIssuesText(ast *cel.Ast, issues *cel.Issues) []string {
 	return issueText
 }
 
-func (r *repl) displayIssues(ast *cel.Ast, issues *cel.Issues) {
+func (r *Repl) displayIssues(ast *cel.Ast, issues *cel.Issues) {
 	lines := r.getIssuesText(ast, issues)
 	for _, line := range lines {
 		r.prompt()

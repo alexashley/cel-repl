@@ -23,9 +23,8 @@ So long, and thanks for all the fish!
 Feature progress:
 - [x] repl
 - [ ] inspect
-    - [x] `inspect` shows the parsed expression of the last command
-    - [x] `inspect $n` does the same for the nth expression
-    - [ ] `inspect $program` shows the parsed expression, but does not execute it
+    - [x] `inspect()` shows the parsed expression of the last command
+    - [x] `inspect(n)` does the same for the nth expression
     - [ ] multiple formats
         - [x] JSON
         - [x] default Go inspection
@@ -37,6 +36,12 @@ Feature progress:
     - [ ] up/down arrows to navigate
     - [x] print history index in prompt
 - [x] expose REPL commands to cel instead of handling externally
+- [ ] `compile` function: parse expression and show parsed output
+    - [ ] `compile(src)`
+    - [ ] `compile(src, fmt)` -- same format options as inspect
+- [ ] `eval` function (compile/check/run)
+- [ ] `ieval` function ("immediate eval" -- no check, compile and run)
+- [ ] `help` function: print all available functions
 - [ ] load proto files and expose them to cel
 - [ ] load data from files -- eval with protos
 - [ ] load config from a file/flags/environment

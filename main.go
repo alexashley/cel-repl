@@ -1,15 +1,20 @@
 package main
 
 import (
+	_ "embed"
+	"github.com/alexashley/cel-repl/repl"
 	"log"
 )
 
+//go:embed version
+var replVersion string
+
 func main() {
-	repl, err := NewRepl()
+	r, err := repl.NewRepl(replVersion)
 
 	if err != nil {
 		log.Fatal("Failed to instantiate repl", err)
 	}
-	repl.init()
-	repl.loop()
+
+	r.Init().Loop()
 }
