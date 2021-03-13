@@ -21,7 +21,7 @@ Feature progress:
 - [x] repl
 - [ ] inspect
     - [x] `inspect` shows the parsed expression of the last command
-    - [ ] `inspect $n` does the same for the nth expression
+    - [x] `inspect $n` does the same for the nth expression
     - [ ] `inspect $program` shows the parsed expression, but does not execute it
     - [ ] multiple formats
         - [ ] JSON
@@ -29,15 +29,15 @@ Feature progress:
         - [ ] pretty printer that walks AST
 - [ ] history
     - [x] store raw source
-    - [ ] store previous parsed programs
-    - [ ] configurable limit
+    - [x] store previous parsed programs
+    - [x] configurable limit
     - [ ] up/down arrows to navigate
     - [x] print history index in prompt
-- [ ] expose REPL commands to cel instead of handling externally
+- [x] expose REPL commands to cel instead of handling externally
 - [ ] load proto files and expose them to cel
 - [ ] load data from files -- eval with protos
 - [ ] load config from a file/flags/environment
 - [ ] navigation shortcuts (ctrl-a/ctrl-e)
 - [ ] clear screen
-- [ ] restart/reload sess
+- [ ] restart/reload session
 - [ ] autocomplete
