@@ -27,7 +27,7 @@ Feature progress:
     - [x] `inspect $n` does the same for the nth expression
     - [ ] `inspect $program` shows the parsed expression, but does not execute it
     - [ ] multiple formats
-        - [ ] JSON
+        - [x] JSON
         - [x] default Go inspection
         - [ ] pretty printer that walks AST
 - [ ] history

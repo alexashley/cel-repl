@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker/decls"
@@ -16,10 +17,19 @@ import (
 )
 
 const (
-	quitFunctionId      = "quit"
-	inspectFunctionId   = "inspect"
-	inspectAtFunctionId = "inspect_int"
-	noHistory           = types.String("No history to inspect")
+	goInspectFormat      = "go"
+	jsonInspectFormat    = "json"
+	prettyInspectFormat  = "pretty"
+	defaultInspectFormat = goInspectFormat
+
+	quitFunctionId = "quit"
+
+	inspectFunctionId      = "inspect"
+	inspectFmtFunctionId   = "inspect_string"
+	inspectAtFunctionId    = "inspect_int"
+	inspectAtFmtFunctionId = "inspect_int_string"
+
+	noHistory = types.String("No history to inspect")
 )
 
 var (
@@ -29,7 +39,9 @@ var (
 	globalFunctions = []*expr.Decl{
 		decls.NewFunction(quitFunctionId, decls.NewOverload(quitFunctionId, []*expr.Type{}, decls.Null)),
 		decls.NewFunction(inspectFunctionId, decls.NewOverload(inspectFunctionId, []*expr.Type{}, decls.String)),
+		decls.NewFunction(inspectFunctionId, decls.NewOverload(inspectFmtFunctionId, []*expr.Type{decls.String}, decls.String)),
 		decls.NewFunction(inspectFunctionId, decls.NewOverload(inspectAtFunctionId, []*expr.Type{decls.Int}, decls.String)),
+		decls.NewFunction(inspectFunctionId, decls.NewOverload(inspectAtFmtFunctionId, []*expr.Type{decls.Int, decls.String}, decls.String)),
 	}
 )
 
@@ -60,7 +72,12 @@ func NewRepl() (*repl, error) {
 		history: newHistoryRingBuffer(c.history),
 	}
 
-	env, err := cel.NewEnv(cel.Declarations(globalFunctions...))
+	opts := []cel.EnvOption{cel.Declarations(globalFunctions...)}
+	if !c.macros {
+		opts = append(opts, cel.ClearMacros())
+	}
+
+	env, err := cel.NewEnv(opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -78,18 +95,32 @@ func (r *repl) quit(_ ...ref.Val) ref.Val {
 }
 
 func (r *repl) inspect(_ ...ref.Val) ref.Val {
-	entry := r.history.get(r.history.position() - 1)
+	entry := r.history.get(r.history.position() - 2)
 
-	return r.inspectEntry(entry)
+	return r.inspectEntry(entry, defaultInspectFormat)
+}
+
+func (r *repl) inspectFmt(formatVal ref.Val) ref.Val {
+	format := formatVal.Value().(string)
+	entry := r.history.get(r.history.position() - 2)
+
+	return r.inspectEntry(entry, format)
 }
 
 func (r *repl) inspectAt(nthVal ref.Val) ref.Val {
 	nth := nthVal.Value().(int64)
 
-	return r.inspectEntry(r.history.get(int(nth) - 1))
+	return r.inspectEntry(r.history.get(int(nth)-1), defaultInspectFormat)
 }
 
-func (r *repl) inspectEntry(entry *historyEntry) ref.Val {
+func (r *repl) inspectAtFmt(nthVal ref.Val, formatVal ref.Val) ref.Val {
+	nth := nthVal.Value().(int64)
+	format := formatVal.Value().(string)
+
+	return r.inspectEntry(r.history.get(int(nth)-1), format)
+}
+
+func (r *repl) inspectEntry(entry *historyEntry, format string) ref.Val {
 	if entry == nil {
 		return noHistory
 	}
@@ -98,7 +129,19 @@ func (r *repl) inspectEntry(entry *historyEntry) ref.Val {
 		return types.String("that's not numberwang")
 	}
 
-	return types.String(entry.ast.Expr().String())
+	formattedOutput := ""
+	switch format {
+	case jsonInspectFormat:
+		jsonBytes, _ := json.MarshalIndent(entry.ast.Expr(), "", "  ")
+		formattedOutput = string(jsonBytes)
+	case goInspectFormat:
+		formattedOutput = entry.ast.Expr().String()
+	//case prettyInspectFormat:
+	default:
+		formattedOutput = fmt.Sprintf("unrecognized output format %s", format)
+	}
+
+	return types.String(formattedOutput)
 }
 
 func (r *repl) init() {
@@ -107,8 +150,29 @@ func (r *repl) init() {
 }
 
 func (r *repl) loop() {
-	programOptions := map[string]interface{}{}
-
+	evalOptions := map[string]interface{}{}
+	programOptions := cel.Functions(
+		&functions.Overload{
+			Operator: quitFunctionId,
+			Function: r.quit,
+		},
+		&functions.Overload{
+			Operator: inspectFunctionId,
+			Function: r.inspect,
+		},
+		&functions.Overload{
+			Operator: inspectFmtFunctionId,
+			Unary:    r.inspectFmt,
+		},
+		&functions.Overload{
+			Operator: inspectAtFunctionId,
+			Unary:    r.inspectAt,
+		},
+		&functions.Overload{
+			Operator: inspectAtFmtFunctionId,
+			Binary: r.inspectAtFmt,
+		},
+	)
 	stdin := bufio.NewReader(os.Stdin)
 	for {
 		r.prompt()
@@ -123,9 +187,9 @@ func (r *repl) loop() {
 
 		ast, issues := r.env.Compile(src)
 		r.history.insert(&historyEntry{
-			ast: ast,
+			ast:    ast,
 			issues: issues,
-			raw: src,
+			raw:    src,
 		})
 
 		if checkIssues(issues) {
@@ -141,28 +205,14 @@ func (r *repl) loop() {
 			}
 		}
 
-		program, err := r.env.Program(ast, cel.Functions(
-			&functions.Overload{
-				Operator: quitFunctionId,
-				Function: r.quit,
-			},
-			&functions.Overload{
-				Operator: inspectFunctionId,
-				Function: r.inspect,
-			},
-			&functions.Overload{
-				Operator: inspectAtFunctionId,
-				Unary:    r.inspectAt,
-			},
-		))
-
+		program, err := r.env.Program(ast, programOptions)
 		if err != nil {
 			r.prompt()
 			fmt.Println(err)
 			continue
 		}
 
-		result, _, err := program.Eval(programOptions)
+		result, _, err := program.Eval(evalOptions)
 		if err != nil {
 			r.prompt()
 			fmt.Println(err)
