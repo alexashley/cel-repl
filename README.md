@@ -3,17 +3,20 @@
 A bare-bones [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop) for [cel](https://github.com/google/cel-spec), powered by [`cel-go`](https://github.com/google/cel-go).
 
 ```bash
-$ go run main.go
+$ make
 cel-repl v0.1.0-local started
-> 1 == 1
-> true
-> "foo".startsWith("bar")
-> false
-> 2 * 2
-> 4
-> [1, 2, 3].filter(n, n > 2)
-> [3]
-> quit
+type quit() to exit
+(1)> 1 == 1
+(2)> true
+(2)> "foo".startsWith("bar")
+(3)> false
+(3)> 2 * 2             
+(4)> 4
+(4)> [1, 2, 3].filter(n, n > 2)
+(5)> [3]
+(5)> inspect(1)
+(6)> id:2  call_expr:{function:"_==_"  args:{id:1  const_expr:{int64_value:1}}  args:{id:3  const_expr:{int64_value:1}}}
+(6)> quit()
 So long, and thanks for all the fish!
 ```
 
