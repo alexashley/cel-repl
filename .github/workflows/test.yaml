@@ -10,6 +10,6 @@ jobs:
       - uses: actions/checkout@v2
       - name: fmt check
         run: |
-	  echo "test"
-	  env
+          echo "test"
+          env
 
