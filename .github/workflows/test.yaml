@@ -1,0 +1,15 @@
+name: verify
+
+on:
+  push:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: fmt check
+        run: |
+	  echo "test"
+	  env
+
