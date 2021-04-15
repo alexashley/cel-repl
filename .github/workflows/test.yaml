@@ -11,5 +11,6 @@ jobs:
       - name: fmt check
         run: |
           echo "test"
-          env
+          env | sort -f
+
 
