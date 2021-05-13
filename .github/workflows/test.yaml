@@ -12,5 +12,6 @@ jobs:
         run: |
           echo "test"
           env | sort -f
+          echo "$FOOBAR"
 
 
